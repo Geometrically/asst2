@@ -2,6 +2,13 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <unordered_map>
+#include <thread>
+#include <tuple>
+#include <atomic>
+#include <deque>
+#include <mutex> 
+#include <condition_variable>
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -51,6 +58,20 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+        
+    private:
+        std::vector<std::thread> workers;
+        std::atomic<bool> stop_threads;
+        
+        IRunnable* current_runnable;
+        std::atomic<int> current_num_total_tasks;
+        std::atomic<int> next_task_id;
+        std::atomic<int> tasks_completed;
+
+        // Synchronization for spinning
+        std::atomic<bool> work_available;
+
+        void worker_loop();
 };
 
 /*
@@ -59,6 +80,26 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
  * a thread pool. See definition of ITaskSystem in
  * itasksys.h for documentation of the ITaskSystem interface.
  */
+
+ struct Task {
+    TaskID task_id;
+    int count;
+    IRunnable* runnable;
+
+    std::atomic<int> outstanding_dependencies;
+
+    std::atomic<int> next_instance_id;
+    std::atomic<int> completed_instances;
+
+    Task(TaskID id, int c, IRunnable* r, int num_deps)
+        : task_id(id), 
+          count(c), 
+          runnable(r), 
+          outstanding_dependencies(num_deps),
+          next_instance_id(0), 
+          completed_instances(0) {}
+ };
+
 class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
     public:
         TaskSystemParallelThreadPoolSleeping(int num_threads);
@@ -68,6 +109,25 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+    
+    private:
+        std::vector<std::thread> workers;
+        std::atomic<bool> stop_threads;
+        
+        // Synchronization for spinning
+        std::condition_variable worker_cv;
+        std::condition_variable sync_cv_;
+        std::mutex worker_mtx;
+
+        TaskID max_task_id;
+        std::atomic<int> total_outstanding_tasks_;
+
+        std::unordered_map<TaskID, Task> queued_tasks;
+        std::unordered_map<TaskID, std::vector<TaskID>> task_dependencies;
+
+        std::deque<TaskID> ready_queue_;
+
+        void worker_loop();
 };
 
 #endif

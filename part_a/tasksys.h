@@ -2,6 +2,8 @@
 #define _TASKSYS_H
 
 #include "itasksys.h"
+#include <thread>
+
 
 /*
  * TaskSystemSerial: This class is the student's implementation of a
@@ -51,6 +53,21 @@ class TaskSystemParallelThreadPoolSpinning: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+    
+    private:
+        std::vector<std::thread> workers;
+        std::atomic<bool> stop_threads;
+        
+        IRunnable* current_runnable;
+        std::atomic<int> current_num_total_tasks;
+        std::atomic<int> next_task_id;
+        std::atomic<int> tasks_completed;
+
+        // Synchronization for spinning
+        std::atomic<bool> work_available;
+
+        void worker_loop();
+    
 };
 
 /*
@@ -68,6 +85,23 @@ class TaskSystemParallelThreadPoolSleeping: public ITaskSystem {
         TaskID runAsyncWithDeps(IRunnable* runnable, int num_total_tasks,
                                 const std::vector<TaskID>& deps);
         void sync();
+
+    private:
+        std::vector<std::thread> workers;
+        std::atomic<bool> stop_threads;
+        
+        IRunnable* current_runnable;
+        std::atomic<int> current_num_total_tasks;
+        std::atomic<int> next_task_id;
+        std::atomic<int> tasks_completed;
+
+        // Synchronization for spinning
+        std::atomic<bool> work_available;
+
+        std::condition_variable worker_cv;
+        std::mutex worker_mtx;
+
+        void worker_loop();
 };
 
 #endif
