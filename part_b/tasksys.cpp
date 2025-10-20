@@ -130,7 +130,8 @@ void TaskSystemParallelThreadPoolSpinning::worker_loop() {
         if (work_available) {
             int task_id;
             while ((task_id = next_task_id.fetch_add(1)) < current_num_total_tasks) {
-                current_runnable->runTask(task_id, current_num_total_tasks);
+                IRunnable* runnable = current_runnable.load();
+                runnable->runTask(task_id, current_num_total_tasks);
                 tasks_completed.fetch_add(1);
             }
         }
@@ -142,7 +143,7 @@ void TaskSystemParallelThreadPoolSpinning::run(IRunnable* runnable, int num_tota
     // NOTE: CS149 students are not expected to implement TaskSystemParallelThreadPoolSpinning in Part B.
     if (num_total_tasks == 0) return;
 
-    current_runnable = runnable;
+    current_runnable.store(runnable);
     current_num_total_tasks = num_total_tasks;
     next_task_id.store(0);
     tasks_completed.store(0);
